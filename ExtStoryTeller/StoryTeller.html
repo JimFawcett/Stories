@@ -43,58 +43,216 @@
     #pagetitle {
       margin-top:15px;
     }
+    .pageNote {
+      visibility:hidden;
+      opacity:0;
+      transition: visibility 1s, opacity 2s;
+      /*-webkit-transition: visibility 1s, opacity 2s;
+      -moz-transition: visibility 1s, opacity 2s;*/
+      padding:10px;
+      background-color: #faffff;
+      color: #2e5694;
+      box-shadow: #aaa 4px 4px;
+      position:fixed;
+      top: 300px;
+      right: 150px;
+      min-width:100px;
+      max-width:30%;
+      border:2px solid #2e5694;
+      z-index:100;
+    }
+    .pageField {
+      display: inline;
+      font-size:large;
+      font-weight:normal;
+    }
+    span-1em {
+      display: inline;
+      padding-left:1em;
+    }
+    span-2em {
+      display: inline;
+      padding-left:2em;
+    }
+    span-3em {
+      display: inline;
+      padding-left:3em;
+    }
+    button {
+      min-width:3em;
+    }
   </style>
   <script>
-    /* ------------------------------------------------------------
-    *  pages is an array which holds page information for a story
-    *  - Each element of the array is a JavaScript object with 
-    *    attributes:
-    *    - url:
-    *      Address of a page to load, taken from the src attribute
-    *      of a story TOC link.
-    *    - name:
-    *      Value of the link, e.g., the text displayed by the link.
-    *    - note:
-    *      A string that is the innerHTML of a div just below the link.
-    *      This will be used for pages notes which slide out on hover.
-    *      
-    *  numItems is the number of links collected from the story TOC page,
-    *  e.g., the number of pages in the story.
-    */
+    /* --------------------------------------------------------------
+     *  window.onerror
+     * --------------------------------------------------------------
+     * This code binds a display function to window error events.
+     * - Each JavaScript execution error causes an alert to popup
+     *   with useful information.
+     * - Combining this with use of the JavaScript console to spot
+     *   compilation errors and log values makes debugging much
+     *   easier.
+     */
+    window.onerror = function (msg, url, linenumber) {
+      alert('Error message: ' + msg + '\nURL: ' + url + '\nLine Number: ' + linenumber);
+      return true;
+    }
+    /* --------------------------------------------------------------
+     *  isDefined(elem)
+     * --------------------------------------------------------------
+     *  Checks to see if a JavaScript variable has been declared and
+     *  initialized
+     */
+    function isDefined(elem) {
+      if (typeof elem === 'undefined' || elem === null)
+        return false;
+      else
+        return true;
+    }
+
+    /* --------------------------------------------------------------
+     *  activeStyle(elem)
+     * --------------------------------------------------------------
+     *  Returns a style object - interrogate with getPropertyValue()
+     */
+    function activeStyle(elem) {
+      return window.getComputedStyle(elem);
+    }
+    /* -------------------------------------------------------------
+     *  pages array, numItems, current index
+     * -------------------------------------------------------------- 
+     *  pages is an array which holds page information for a story
+     *  - Each element of the array is a JavaScript object with 
+     *    attributes:
+     *    - url:
+     *      Address of a page to load, taken from the src attribute
+     *      of a story TOC link.
+     *    - name:
+     *      Value of the link, e.g., the text displayed by the link.
+     *    - note:
+     *      A string that is the innerHTML of a div just below the link.
+     *      This will be used for pages notes which slide out on hover.
+     *      
+     *  numItems is the number of links collected from the story TOC page,
+     *  e.g., the number of pages in the story.
+     */
 
     var pages = [];
     var numItems = 0;
+    var current = 1;
 
-    /* ------------------------------------------------------------
-     *  Show story TOC page in iframe
-     *  - This will turn into the story page renderer
-     *  - Right now, the story index si is either 0 
-     *    to show a blank page or 1 to show the story TOC page
+    /* --------------------------------------------------------------
+     *  render(si) - si is story index
+     * --------------------------------------------------------------
+     *  Show story pages in iframe
+     *  - si == -1 shows blank page
+     *  - si ==  0 shows story list
+     *  - si >=  1 shows story page
      */
     function render(si) {
-      if (numItems === 0 || !numItems)
-        retrieve();
+      // get locations to show current page an number of pages
       let index = document.getElementById("pageIndex");
       index.innerHTML = si.toString();
       let count = document.getElementById("numItems");
       count.innerHTML = numItems.toString();
-      //alert(si);
-      //alert(numItems);
-      storyIndex = si;
+
+      // get location to show page address
+      let pageField = document.getElementById('pageField');
+
+      // get story teller iframe
       let slider = document.getElementById("slideShow");
+
+      //console.log('pageField.tagname = ' + pageField.tagName);
       switch (si) {
-        case -1:
+        case -1:  // Refreshing story teller loads blank page
           slider.setAttribute("src", "blank.html")
+          disableButtons();
+          disableButton('retrieveBtn');
+          disableButton('clrStorage');
+
+          //console.log('pageField.tagname = ' + pageField.tagName);
+          //let styleObj = activeStyle(pageField);
+          //let val = styleObj.getPropertyValue('display');
+          //console.log('pageField.style.display = ' + val);
+
+          if (isDefined(pageField))
+            pageField.style.display = "none";
           break;
-        case 0:
-          slider.setAttribute("src", "StoryTOC.html");
+
+        case 0:  // load story list
+          clearLocalStorage();
+          slider.setAttribute("src", "StoryList.html");
+          disableButtons();
+          enableButton('retrieveBtn');
+          if(isDefined(pageField))
+            pageField.style.display = "none";
           break;
-        default:
+
+        default: // render story pages
           if (si < -1 || numItems < si)
             return;
+          enableButton('clrStorage');  // button hidden, will probably remove
+
+          // set iframe source to page indexed by si
           slider.setAttribute("src", pages[si - 1].url);
+          // set note text for this page
+          let noteElem = document.getElementById("pageNoteId");
+          noteElem.innerHTML = pages[si - 1].note;
+
+          //console.log('pageField.tagname = ' + pageField.tagName);
+
+          // show page index and number of pages
+          if (isDefined(pageField)) {
+            pageField.style.display = "inline";
+          }
+          break;
       }
+      // show page url
+      let addr = document.getElementById("pageAddress");
+        if (addr && pages) {
+          if (pages[si - 1]) 
+            addr.innerHTML = pages[si - 1].url;
+      }
+      // force iframe to change location
       document.getElementById("slideShow").src = document.getElementById("slideShow").src;
+    }
+    /* --------------------------------------------------------------
+     *  Enable a single button 
+     */
+    function enableButton(id) {
+      let button = document.getElementById(id);
+      if(button)
+        button.disabled = false;
+    }
+    /* --------------------------------------------------------------
+     *  Enable all of the page control buttons
+     */
+    function enableButtons() {
+      enableButton('firstBtn');
+      enableButton('lastBtn');
+      enableButton('nextBtn');
+      enableButton('currBtn');
+      enableButton('prevBtn');
+      enableButton('toggleBtn');
+    }
+    /* --------------------------------------------------------------
+     *  Disable a single button 
+     */
+    function disableButton(id) {
+      let button = document.getElementById(id);
+      if(button)
+        button.disabled = true;
+    }
+    /* --------------------------------------------------------------
+     *  Disable all of the page control buttons
+     */
+    function disableButtons() {
+      disableButton('firstBtn');
+      disableButton('lastBtn');
+      disableButton('nextBtn');
+      disableButton('currBtn');
+      disableButton('prevBtn');
+      disableButton('toggleBtn');
     }
     /* ------------------------------------------------------------
      *  Helper function to remove all child elements for a
@@ -109,14 +267,31 @@
      *  Empty the placeholder contents
      */
     function clearDisplay(id) {
-      localStorage.clear();
-      pages = [];
-      numItems = 0;
       render(-1);
       let place = document.getElementById(id);
       removeChildren(place);
     }
     /* ------------------------------------------------------------
+     *  Empty page information held in localStorage
+     */
+    function clearLocalStorage() {
+      localStorage.clear();
+      pages = [];
+      numItems = 0;
+      render(-1);
+    }
+    /* --------------------------------------------------------------
+     *  Empty pages array
+     */
+    function clearPages() {
+      if (pages && numItems) {
+        pages.length = 0;
+        numItems = 0;
+      }
+    }
+    /* --------------------------------------------------------------
+     *  retrieve(id)
+     * --------------------------------------------------------------
      *  Retrieve story page information from local storage
      *  placed there by the story TOC page.
      *  - For each page create JavaScript object from stored JSON
@@ -124,30 +299,42 @@
      *  - Also display page data in placeholder div so we can see
      *    what was processed.
      */
-    function retrieve(/*id*/) {
-      let numItemsStr = localStorage.getItem('numItems');
-      numItems = parseInt(numItemsStr, 10);
+    function retrieve(id) {
+      clearPages();
+      if ('numItems' in localStorage) {
+        let numItemsStr = localStorage.getItem('numItems');
+        numItems = parseInt(numItemsStr, 10);
+      }
+      else {
+        alert('please select story')
+        return;
+      }
 
-      //let keyItem = document.createElement("div");
-      //keyItem.innerHTML = 'numItems : ' + numItemsStr;
-      //place = document.getElementById(id);
-      //place.setAttribute("id", id);
-      //removeChildren(place);
-      //place.appendChild(keyItem);
+      enableButtons();
+      disableButton('retrieveBtn');
+
+      // push page objects into pages array
       for (var i = 0; i < numItems; ++i) {
         let key = "page-" + i.toString();
         let value = localStorage.getItem(key);
         var obj = JSON.parse(value);
         pages.push(obj);
-
-        //let item = document.createElement("div");
-        //item.innerHTML = key + " : " + value;
-        //place.appendChild(item);
+      }
+      // set number of pages in display field and show it
+      let item = document.getElementById(id);
+      item.innerHTML = numItems.toString();
+      //console.log('pageField.tagname = ' + pageField.tagName);
+      if (isDefined(pageField)) {
+        pageField.style.display = "inline";
       }
     }
     /* ------------------------------------------------------------
-     *  Step throught pages array and display their contents 
-     *  in placeholder
+     *  showPages(id)
+     * ------------------------------------------------------------
+     *  - Step throught pages array and display their contents 
+     *    in placeholder
+     *  - No longer used.  May decide to add an admin menu that
+     *    uses this display
      */
     function showPages(id) {
       if (!numItems)
@@ -167,27 +354,67 @@
         place.appendChild(pageDisplay);
       }
     }
-    var curr = 1;
-
+    /* --------------------------------------------------------------
+     *  Render first page
+     */
     function first() {
       curr = 1;
       render(curr);
     }
+    /* --------------------------------------------------------------
+     *  Render last page
+     */
     function last() {
       curr = numItems;
       render(curr);
     }
+    /* --------------------------------------------------------------
+     *  Increment page count and render it
+     */
     function next() {
-      ++curr;
+      if (typeof curr === 'undefined')
+        curr = 1;
+      else
+        ++curr;
       if (curr > numItems)
         curr = 1;
       render(curr);
     }
+    /* --------------------------------------------------------------
+     *  Return to story after navigating away in displayed page 
+     */
+    function returnToCurr() {
+      if (typeof curr === 'undefined')
+        curr = 1;
+      render(curr);
+    }
+    /* --------------------------------------------------------------
+     *  Render previous page
+     */
     function prev() {
       --curr;
       if (curr < 1)
         curr = numItems;
       render(curr);
+    }
+    /* --------------------------------------------------------------
+     *  toggleNote()
+     * --------------------------------------------------------------
+     *  Show or hid page note, collected from story TOC
+     */
+    function toggleNote() {
+      let note = document.getElementById("pageNoteId");
+      let styleObj = activeStyle(note);
+      let vis = styleObj.getPropertyValue('visibility');
+      if (vis === 'hidden' || !isDefined(vis)) {
+        note.style.visibility = 'visible';
+        note.style.opacity = 1.0;
+        note.innerHTML = pages[curr - 1].note;
+      }
+      else {
+        note.style.visibility = 'hidden';
+        note.style.opacity = 0;
+      }
     }
   </script>
 </head>
@@ -205,31 +432,56 @@
     <grid-container>
       <iframe id="slideShow" class="slideShow" src=""></iframe>
     </grid-container>
+    <div id="pageNoteId" class="pageNote" onclick="toggleNote()">
+      Page notes are shown here.
+    </div>
     <spacer-25></spacer-25>
 
     <!-- load story TOC page -->
-    <button onclick="render(0)">Load TOC</button>
-    <span>&nbsp;&nbsp;&nbsp;</span>
+    <button id="loadBtn" onclick="render(0)">Load Story List</button>
+    <span-1em></span-1em>
 
     <!-- Read page contents rendered by story TOC into localStorage -->
-    <button onclick="retrieve()">Read LocalStorage</button>
+    <button id="retrieveBtn" onclick="retrieve('numItems')">Load Story</button>
+    <span-1em></span-1em>
+
+    <!--
+    !-- show contents of pages array filled by retrieve --
+    <button id="showPages" onclick="showPages('fromStoragePlaceholder')">Display Pages</button>
     <span>&nbsp;&nbsp;&nbsp;</span>
 
-    <!-- show contents of pages array filled by retrieve -->
-    <button onclick="showPages('fromStoragePlaceholder')">Display Pages</button>
+    !-- clear the placeholder's contents --
+    <button id="clrDisplay" onclick="clearDisplay('fromStoragePlaceholder')">Clear Display</button>
     <span>&nbsp;&nbsp;&nbsp;</span>
 
-    <!-- clear the placeholder's contents -->
-    <button onclick="clearDisplay('fromStoragePlaceholder')">Clear Display</button>
-    <spacer-15></spacer-15>
-    <button onclick="first()">First</button>&nbsp;&nbsp;&nbsp;
-    <button onclick="last()">Last</button>&nbsp;&nbsp;&nbsp;
-    <button onclick="next()">Next</button>&nbsp;&nbsp;&nbsp;
-    <button onclick="prev()">Prev</button>&nbsp;&nbsp;&nbsp;
-    <span>page index:&nbsp;</span>&nbsp;
-    <span id="pageIndex"></span>&nbsp;&nbsp;&nbsp;
-    <span>num items:&nbsp;</span>&nbsp;
-    <span id="numItems"></span>
+    !-- clear local storage and pages --
+    <button id="clrStorage" onclick="clearLocalStorage()">Clear Story</button>
+    -->
+
+    <button id="firstBtn" onclick="first()">First</button>
+    <span-1em></span-1em>
+    <button id="lastBtn" onclick="last()">Last</button>
+    <span-1em></span-1em>
+    <button id="nextBtn" onclick="next()">Next</button>
+    <span-1em></span-1em>
+    <button id="currBtn" onclick="returnToCurr()">Curr</button>
+    <span-1em></span-1em>
+    <button id="prevBtn" onclick="prev()">Prev</button>
+    <span-1em></span-1em>
+    <button id="toggleBtn" onclick="toggleNote()">?</button>
+    <spacer-10></spacer-10>
+    <span-1em></span-1em>
+    <span id="pageField" class="pageField">
+      <span style="font-size:large;">
+        page&nbsp;
+        <span id="pageIndex"></span>&nbsp;
+        of&nbsp;
+        <span id="numItems"></span>
+        pages
+      </span>
+      <span-3em></span-3em>
+      <span id="pageAddress"></span>
+    </span>
     <spacer-15></spacer-15>
     <!-- location of displayed page analysis results -->
     <indent-block>
@@ -237,7 +489,6 @@
     </indent-block>
   </indent-block>
 
-  <div style="height:200px;">&nbsp;</div>
   <script>
     render(-1);  // show blank page in iframe
   </script>
